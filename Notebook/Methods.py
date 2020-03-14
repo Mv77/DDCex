@@ -46,6 +46,7 @@ import copy
 # 		1, & \text{ if } i_t = 1
 # 		\end{cases}.
 # \end{equation}
+#
 # A period's profits depend on mantainance costs, replacement costs, and factors that the econometrician does not observe, modeled as stochastic shocks $\epsilon$:
 # \begin{equation}
 #     \Pi (a_t,i_t,\epsilon_{0,t},\epsilon_{1,t}) = \begin{cases}
@@ -68,29 +69,9 @@ import copy
 # 	\end{split}
 # \end{equation}
 #
-# Choice-specific net-of-error value functions
-# $\bar{V}_0(\cdot)$ and $\bar{V}_1(\cdot)$ can be defined as
+# The code below defines functions and objects that capture the structure of the problem
 #
-# \begin{equation}
-# 	\begin{split}
-# 	\bar{V}_0(a_t) =& \theta_1 a_t + \\
-# 	&\beta E \left[\max \left\{ \bar{V}_0\left( 
-# 	\min 
-# 	\left\{ 5, a_t 
-# 	+1 \right\} \right) + \epsilon_{0,t+1}, \bar{V}_1\left( \min 
-# 	\left\{ 5, a_t 
-# 	+1 \right\} \right) + 
-# 	\epsilon_{1,t+1} \right\} \right]
-# 	\end{split}
-# \end{equation}
 #
-# and
-#
-# \begin{equation}
-# \bar{V}_1(a_t) = R + \beta E \left[\max \left\{ \bar{V}_0\left( 
-# 1 \right) + \epsilon_{0,t+1}, \bar{V}_1\left(1\right) + 
-# \epsilon_{1,t+1} \right\} \right].
-# \end{equation}
 #
 # This allows us to re-express the full value function as
 #
@@ -124,6 +105,58 @@ def transition(a, i):
     else:
         return(1)
 
+    
+# Construct state and choice vectors
+states = np.arange(5) + 1
+choices = np.arange(2)
+
+# Construct the transition matrix array:
+# A 2 x 5 x 5 array in which the position (i,j,k) contains
+# the probability of moving from state j to state k given that
+# choice i was made
+
+trans_mat = np.zeros((len(choices),len(states),len(states)))
+
+# If no-replacement, deterministically move to the next state, up to the last
+for k in range(len(states)-1):
+    trans_mat[0][k][k+1] = 1
+trans_mat[0,len(states)-1,len(states)-1] = 1
+
+# If replacement, deterministically move to the first state
+for k in range(len(states)):
+    trans_mat[1,k,0] = 1
+
+# %% [markdown]
+# ## Some more notation
+#
+# The solution methods use objects that are derived from the value function $V$ and that will be defined below.
+#
+# ### Pre-Shocks Expected value function $\tilde{V}(\cdot)$
+#
+# This object captures the lifetime utility a shop can expect after knowing its state $a_t$ but before knowing its stochastic shock realizations.
+#
+# \begin{equation}
+#     \tilde{V}(a_t) = E_\epsilon [V(a_t,\epsilon_{0,t},\epsilon_{1,t})]
+# \end{equation}
+#
+# ### Choice-Specific Value Functions $\bar{V}_{i}(\cdot)$
+#
+# These two objects capture the lifetime utility expected from a choice, excluding the current-period stochastic shock. Formally, they are:
+#
+# \begin{equation}
+# 	\bar{V}_0(a_t) = \theta_1 a_t + \beta E \left[ V(\min\left\{ 5, a_t+1\right\},\epsilon_{0,t+1},\epsilon_{1,t+1}\right)]
+# \end{equation}
+#
+# and
+#
+# \begin{equation}
+# \bar{V}_1(a_t) = R + \beta E \left[ V(1,\epsilon_{0,t+1},\epsilon_{1,t+1}\right)].
+# \end{equation}
+#
+
+# %%
+
+
 # Compute the log-likelihood of (a,i) vectors given value functions
 def logL(a, i, V):
     
@@ -137,19 +170,7 @@ def logL(a, i, V):
     logLik = np.sum(np.log(L))
     return(logLik)
 
-# Construct state and choice vectors
-states = np.arange(5) + 1
-choices = np.arange(2)
 
-# Construct transition matrices
-trans_mat = np.zeros((len(choices),len(states),len(states)))
-# If no-replacement, deterministically move to the next state, up to the last
-for k in range(len(states)-1):
-    trans_mat[0][k][k+1] = 1
-trans_mat[0,len(states)-1,len(states)-1] = 1
-# If replacement, deterministically move to the first state
-for k in range(len(states)):
-    trans_mat[1,k,0] = 1
 
 # %% [markdown]
 # # Solution of the dynamic problem
