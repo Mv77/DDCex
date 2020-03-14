@@ -19,6 +19,12 @@
 #
 # # Mateo Velásquez-Giraldo
 #
+# This notebook solves a simple dynamic "machine replacement" problem using three different methods:
+# - Contraction mapping iteration.
+# - Hotz-Miller inversion.
+# - Forward simulation.
+#
+# The code is optimized for clarity, not speed, as the purpose is to give a sense of how the three methods work and how they can be implemented.
 
 # %%
 # Setup
@@ -31,6 +37,16 @@ import copy
 # %% [markdown]
 # # Problem setup
 #
+# The problem is taken from a problem set of Prof. Nicholas Papageorge Topics in Microeconometrics course at Johns Hopkins University and borrows heavily from Professor Juan Pantano's course Microeconometrics offered at Washington University in St. Louis.
+#
+# There is a shop that operates using a machine. The machine's mantainance costs increase with its age, denoted $a_t$. On each period, the shop must decide whether to replace the machine ($i_t = 1$) or not ($i_t=0$). Assume that costs stop increasing after the machine reaches $a_t = 5$ so that, in practice, that is the maximum age. Age then evolves according to:
+# \begin{equation}
+# a_{t+1} = \begin{cases}
+# 		\min \{5,a_t+1\}, & \text{ if } i_t = 0 \\
+# 		1, & \text{ if } i_t = 1
+# 		\end{cases}.
+# \end{equation}
+# A period's profits depend on mantainance costs, replacement costs, and factors that the econometrician does not observe, modeled as stochastic shocks $\epsilon$:
 # \begin{equation}
 #     \Pi (a_t,i_t,\epsilon_{0,t},\epsilon_{1,t}) = \begin{cases}
 #         \theta a_t + \epsilon_{0,t} & \text{if } i_t=0\\
@@ -38,6 +54,7 @@ import copy
 #     \end{cases}
 # \end{equation}
 #
+# The shop's problem can be recursively defined as:
 # \begin{equation}
 # 	\begin{split}
 # 		V(a_t,\epsilon_{0,t},\epsilon_{1,t}) &= \max_{i_t} \Pi 
