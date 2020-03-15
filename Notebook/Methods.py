@@ -70,24 +70,6 @@ import copy
 # \end{equation}
 #
 # The code below defines functions and objects that capture the structure of the problem
-#
-#
-#
-# This allows us to re-express the full value function as
-#
-# \begin{equation}
-# 	V(a_t,\epsilon_{0,t},\epsilon_{1,t}) = \max \left\{ \bar{V}_0\left( 
-# 	a_t \right) + \epsilon_{0,t}, \bar{V}_1\left( 
-# 	a_t \right) + \epsilon_{1,t} \right\}.
-# \end{equation}
-#
-# \begin{equation}
-# P(i=1|a,\theta) = \frac{\exp (\bar{V}_1(a_t, \theta, R))}{\exp (\bar{V}_0(a_t, \theta, R))+\exp (\bar{V}_1(a_t, \theta, R))}
-# \end{equation}
-#
-# \begin{equation}
-# \mathcal{L}(\alpha,\theta_A, \theta_B,R) = \Pi_{j=1}^N \left[ \alpha \times  P\left( i_j|a_j,\theta_A, R\right) + \left(1-\alpha \right) \times P\left( i_j|a_j,\theta_B, R\right) \right].
-# \end{equation}
 
 # %%
 # Profit function (the deterministic part)
@@ -153,6 +135,42 @@ for k in range(len(states)):
 # \bar{V}_1(a_t) = R + \beta E \left[ V(1,\epsilon_{0,t+1},\epsilon_{1,t+1}\right)].
 # \end{equation}
 #
+#
+# ## Useful relationships
+#
+# The previously defined objects are related through the following identities
+#
+# \begin{equation}
+#     \bar{V}_i\left( a_t \right) = \Pi (a_t,i_t,0,0) + \beta\tilde{V}\left(a_{t+1}\left(a_t,i\right)\right),
+# \end{equation}
+# and
+# \begin{equation}
+# 	V(a_t,\epsilon_{0,t},\epsilon_{1,t}) = \max \left\{ \bar{V}_0\left( 
+# 	a_t \right) + \epsilon_{0,t}, \bar{V}_1\left( 
+# 	a_t \right) + \epsilon_{1,t} \right\}.
+# \end{equation}
+#
+# ## Choice probabilities
+#
+# Using the last relationship and assuming that a shop behaves optimally, it should be the case that
+#
+# \begin{equation}
+#     i_t = \arg \max_{i\in \{0,1\}} \left( \bar{V}_i\left( a_t \right) + \epsilon_{i,t}\right).
+# \end{equation}
+#
+# Assuming that stochastic shocks $\epsilon$ are i.i.d Extreme-value-type-1 yields a simple expression for the probability of choosing each alternative:
+#
+# \begin{equation}
+# P(i_t=1|a_t) = \frac{\exp (\bar{V}_1(a_t))}{\exp (\bar{V}_0(a_t))+\exp (\bar{V}_1(a_t))}.
+# \end{equation}
+#
+# This expression allows us to estimate the model's parameters given data through maximum likelihood estimation. The likelihood function would be
+#
+# \begin{equation}
+# \mathcal{L}(\theta,R) = \Pi_{j=1}^N P\left( i_j|a_j,\theta, R\right).
+# \end{equation}
+#
+# We now only need ways to obtain choice-specific net-of-error value functions $\bar{V}_i(\cdot)$ for any given set of parameters. In this notebook we will explore three.
 
 # %%
 
