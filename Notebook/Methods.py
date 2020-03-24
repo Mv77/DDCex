@@ -108,6 +108,7 @@ trans_mat[0,len(states)-1,len(states)-1] = 1
 for k in range(len(states)):
     trans_mat[1,k,0] = 1
 
+
 # %% [markdown]
 # ## Some more notation
 #
@@ -173,9 +174,8 @@ for k in range(len(states)):
 # We now only need ways to obtain choice-specific net-of-error value functions $\bar{V}_i(\cdot)$ for any given set of parameters. In this notebook we will explore three.
 
 # %%
-
-
-# Compute the log-likelihood of (a,i) vectors given value functions
+# Compute the log-likelihood of (a,i) vectors given choice-specific,
+# net-of-error value functions
 def logL(a, i, V):
     
     # Compute the probability of each (a,i) pair possible
@@ -189,9 +189,31 @@ def logL(a, i, V):
     return(logLik)
 
 
-
 # %% [markdown]
 # # Solution of the dynamic problem
+#
+# To simulate data, we must first solve the problem. We must then introduce the first method that we will use.
+
+# %% [markdown]
+# ## 1. Contraction mapping iteration
+#
+# A first way of obtaining choice-specific value functions is defining the following mapping.
+#
+# \begin{equation}
+#     T\left(\begin{bmatrix}
+#     f_0(\cdot)\\
+#     f_1(\cdot)
+#     \end{bmatrix}\right)(a_t) = \begin{bmatrix}
+#     \theta_1 a_t + \beta E [\max \left\{ f_0\left( a_{t+1}\left(a_t,i_t=0\right)\right) + \epsilon_{0,t}, f_1\left( \left( a_{t+1}\left(a_t,i_t=0\right) \right) \right) + \epsilon_{1,t} \right\}] \\
+#     R + \beta E [ \max \left\{ f_0\left( 
+# 	\left( a_{t+1}\left(a_t,i_t=1\right) \right) \right) + \epsilon_{0,t}, f_1\left( 
+# 	\left( a_{t+1}\left(a_t,i_t=1\right) \right) \right) + \epsilon_{1,t} \right\}]
+#     \end{bmatrix}
+# \end{equation}
+#
+# and noting that $[\bar{V}_0(\cdot),\bar{V}_1(\cdot)]'$ is a fixed point of $T$.
+#
+# In fact, $T$ is a contraction mapping, so a strategy for finding its fixed point is iteratively applying $T$ from an arbitrary starting point. This is precisely what the code below does.
 
 # %%
 # Computation of E[max{V_0 + e0, V_1 + e1}]
@@ -234,6 +256,110 @@ def findFX(V0, theta, R, beta, tol, disp = True):
         V0 = V1
         
     return(V1)
+
+
+# %% [markdown]
+# ## 2. Hotz-Miller Inversion
+#
+# The Hotz-Miller method relies on the following re-expression of the pre-shock expected value function
+#
+# \begin{equation}
+#     \tilde{V}(a_t) = \sum_{i\in\{0,1\}} P(i_t = i | a_t) \times \left( \Pi \left(a_t,i_t,0,0\right) + E\left[ \epsilon_i | i_t = i\right] + \sum_{a'= 1}^{5} P\left(a_{t+1} = a' | a_t, i_t = i\right) \tilde{V}\left(a'\right) \right)
+# \end{equation}
+#
+# which is a system of linear equations in $\{ \tilde{V}(1),...,\tilde{V}(5) \}$ if one knows $ P(i_t = i | a_t)$, $\Pi\left(a_t,i_t,0,0\right)$, $E\left[ \epsilon_i | i_t = i\right]$, and $P\left(a_{t+1} = a' | a_t, i_t = i\right)$.
+#
+# \begin{itemize}
+# \item $ P(i_t = i | a_t)$ are known as "conditional choice probabilities", and can be estimated from the data directly.
+# \item $P\left(a_{t+1} = a' | a_t, i_t = i\right)$ are state-to-state transition probabilities. In our simple problem transitions are deterministic, but in more complex problems these could also be directly estimated from the data.
+# \item $\Pi\left(a_t,i_t,0,0\right)$ is known given parameters.
+# \item $E\left[ \epsilon_i | i_t = i\right]$ is equal to $\gamma - \ln P(i_t = i|a_t)$ if one assumes i.i.d extreme value type one errors ($\gamma$ is Euler's constant).
+# \end{itemize}
+#
+# Thus, for any given parameter vector we can solve the linear system for $\{ \tilde{V}(1),...,\tilde{V}(5) \}$. With these, we can use the previously defined relationship
+#
+# \begin{equation}
+#     \bar{V}_i\left( a_t \right) = \Pi (a_t,i_t,0,0) + \beta\tilde{V}\left(a_{t+1}\left(a_t,i\right)\right),
+# \end{equation}
+#
+# to obtain choice-specific, net-of-error value functions and obtain our likelihood.
+
+# %%
+def Hotz_Miller(theta, R, states, choices, CPPS, trans_mat,invB):
+    
+    nstates = len(states)
+    nchoices = len(choices)
+    
+    # Construct ZE matrix
+    ZE = np.zeros((nstates, nchoices))
+    for i in range(nstates):
+        for j in range(nchoices):
+            ZE[i,j] = CPPS[i,j]*( profit_det(states[i],choices[j],theta,R) +
+                                  np.euler_gamma - np.log(CPPS[i,j]) )
+    
+    # Take a sum.
+    ZE = np.sum(ZE,1,keepdims = True)
+    # Compute W
+    W = np.matmul(invB, ZE)
+    
+    # Z and V
+    Z = np.zeros((nstates,nchoices))
+    V = np.zeros((nstates,nchoices))
+    for i in range(nstates):
+        for j in range(nchoices):
+            Z[i,j] = np.dot(trans_mat[j][i,:],W)
+            
+            V[i,j] = profit_det(states[i],choices[j],theta,R) + beta*Z[i,j]
+    return(V)
+
+
+# %% [markdown]
+# ## 3. Forward Simulation
+
+# %%
+def forward_simul(theta,R,beta,states,choices,CPPS,trans_mat,nperiods,nsims,
+                  seed):
+    
+    # Set seed
+    rnd.seed(seed)
+    
+    # Initialize V
+    V = np.zeros((len(states),len(choices)))
+    
+    for i in range(len(states)):
+        for j in range(len(choices)):
+            
+            v_accum = 0
+            for r in range(nsims):
+                
+                a_ind = i
+                c_ind = j
+                v = profit_det(states[a_ind], choices[c_ind], theta, R)
+                
+                for t in range(nperiods):
+                    
+                    # Simulate state
+                    a_ind = rnd.choice(a = len(states),
+                                            p = trans_mat[c_ind][a_ind])
+                    
+                    # Simulate choice
+                    c_ind = rnd.choice(a = len(choices),
+                                            p = CPPS[a_ind])
+                    
+                    # Find expected value of taste disturbance conditional on
+                    # choice
+                    exp_e = np.euler_gamma - np.log(CPPS[a_ind,c_ind])
+                    # Update value funct
+                    v = v + ( beta**(t+1) ) * (profit_det(states[a_ind],
+                                                          choices[c_ind],
+                                                          theta,R) +
+                                               exp_e)
+
+                v_accum = v_accum + v
+            V[i,j] = v_accum / nsims
+    
+    return(V)
+
 
 
 # %% [markdown]
@@ -398,35 +524,6 @@ def logL_par_HM(par, a, i,
     
     # Return the loglikelihood from the implied value function
     return(logL(a, i, V) )
-
-
-
-def Hotz_Miller(theta, R, states, choices, CPPS, trans_mat,invB):
-    
-    nstates = len(states)
-    nchoices = len(choices)
-    
-    # Construct ZE matrix
-    ZE = np.zeros((nstates, nchoices))
-    for i in range(nstates):
-        for j in range(nchoices):
-            ZE[i,j] = CPPS[i,j]*( profit_det(states[i],choices[j],theta,R) +
-                                  np.euler_gamma - np.log(CPPS[i,j]) )
-    
-    # Take a sum. Is this a typo by Nick?
-    ZE = np.sum(ZE,1,keepdims = True)
-    # Compute W
-    W = np.matmul(invB, ZE)
-    
-    # Z and V
-    Z = np.zeros((nstates,nchoices))
-    V = np.zeros((nstates,nchoices))
-    for i in range(nstates):
-        for j in range(nchoices):
-            Z[i,j] = np.dot(trans_mat[j][i,:],W)
-            
-            V[i,j] = profit_det(states[i],choices[j],theta,R) + beta*Z[i,j]
-    return(V)
 # %%
 # Compute the state-to-state (no choice matrix)
 PF = state_state_mat(cpps,trans_mat)
@@ -454,49 +551,6 @@ print('R: %.4f (%.4f)' % (mean_est_HM[1], se_est_HM[1]))
 # ## 3. Forward Simulation
 
 # %% Estimate using contraction mapping
-def forward_simul(theta,R,beta,states,choices,CPPS,trans_mat,nperiods,nsims,
-                  seed):
-    
-    # Set seed
-    rnd.seed(seed)
-    
-    # Initialize V
-    V = np.zeros((len(states),len(choices)))
-    
-    for i in range(len(states)):
-        for j in range(len(choices)):
-            
-            v_accum = 0
-            for r in range(nsims):
-                
-                a_ind = i
-                c_ind = j
-                v = profit_det(states[a_ind], choices[c_ind], theta, R)
-                
-                for t in range(nperiods):
-                    
-                    # Simulate state
-                    a_ind = rnd.choice(a = len(states),
-                                            p = trans_mat[c_ind][a_ind])
-                    
-                    # Simulate choice
-                    c_ind = rnd.choice(a = len(choices),
-                                            p = CPPS[a_ind])
-                    
-                    # Find expected value of taste disturbance conditional on
-                    # choice
-                    exp_e = np.euler_gamma - np.log(CPPS[a_ind,c_ind])
-                    # Update value funct
-                    v = v + ( beta**(t+1) ) * (profit_det(states[a_ind],
-                                                          choices[c_ind],
-                                                          theta,R) +
-                                               exp_e)
-
-                v_accum = v_accum + v
-            V[i,j] = v_accum / nsims
-    
-    return(V)
-
 # Compute the log-likelihood of (a,i) vectors given parameter values,
 # with forward simulation method
 def logL_par_fs(par, a, i,
