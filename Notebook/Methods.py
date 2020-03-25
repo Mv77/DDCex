@@ -269,12 +269,13 @@ def findFX(V0, theta, R, beta, tol, disp = True):
 #
 # which is a system of linear equations in $\{ \tilde{V}(1),...,\tilde{V}(5) \}$ if one knows $ P(i_t = i | a_t)$, $\Pi\left(a_t,i_t,0,0\right)$, $E\left[ \epsilon_i | i_t = i\right]$, and $P\left(a_{t+1} = a' | a_t, i_t = i\right)$.
 #
-# \begin{itemize}
-# \item $ P(i_t = i | a_t)$ are known as "conditional choice probabilities", and can be estimated from the data directly.
-# \item $P\left(a_{t+1} = a' | a_t, i_t = i\right)$ are state-to-state transition probabilities. In our simple problem transitions are deterministic, but in more complex problems these could also be directly estimated from the data.
-# \item $\Pi\left(a_t,i_t,0,0\right)$ is known given parameters.
-# \item $E\left[ \epsilon_i | i_t = i\right]$ is equal to $\gamma - \ln P(i_t = i|a_t)$ if one assumes i.i.d extreme value type one errors ($\gamma$ is Euler's constant).
-# \end{itemize}
+# - $ P(i_t = i | a_t)$ are known as "conditional choice probabilities", and can be estimated from the data directly.
+#
+# - $P\left(a_{t+1} = a' | a_t, i_t = i\right)$ are state-to-state transition probabilities. In our simple problem, transitions are deterministic, but in more complex problems these could also be directly estimated from the data.
+#
+# - $\Pi\left(a_t,i_t,0,0\right)$ is known given parameters.
+#
+# - $E\left[ \epsilon_i | i_t = i\right]$ is equal to $\gamma - \ln P(i_t = i|a_t)$ if one assumes i.i.d extreme value type one errors ($\gamma$ is Euler's constant).
 #
 # Thus, for any given parameter vector we can solve the linear system for $\{ \tilde{V}(1),...,\tilde{V}(5) \}$. With these, we can use the previously defined relationship
 #
