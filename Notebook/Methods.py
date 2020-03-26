@@ -365,6 +365,10 @@ def forward_simul(theta,R,beta,states,choices,CPPS,trans_mat,nperiods,nsims,
 
 # %% [markdown]
 # # Dataset simulation
+#
+# Now, to simulate the model, we only need to solve the problem for some set of parameters and, using the result and simulated taste shocks, produce optimal behavior.
+#
+# The function below does exactly this, simulating a panel of machines, each observed for some pre-set number of periods.
 
 # %%
 def sim_dataset(theta, R, nmachines, n_per_machine, beta):
@@ -408,6 +412,29 @@ def sim_dataset(theta, R, nmachines, n_per_machine, beta):
             
     return(data)
 
+
+# %% [markdown]
+# Now we can use the function to simulate a full dataset.
+
+# %%
+# Simulate a dataset of a single type
+nmachines = 6000
+n_per_machine = 1
+
+# Assign test parameters
+theta = -1
+R = -4
+beta = 0.85
+
+data = sim_dataset(theta, R, nmachines, n_per_machine, beta)
+a = data.a.values.astype(int)
+i = data.i.values.astype(int)
+
+
+# %% [markdown]
+# It is also useful to define functions that estimate conditional choice probabilities and state-to-state transition probabilities from the data, since we will be using them in estimation for some methods.
+
+# %%
 def get_ccps(states, choices):
     # Function to estimate ccps. Since we are in a discrete setting,
     # these are just frequencies.
@@ -448,26 +475,23 @@ def state_state_mat(CPP,transition_mat):
     return(PF)
 
 
+# %% [markdown]
+# Now we use the functions to estimate the CCPS and the transition matrix in the dataset that we just simulated.
+
 # %%
-# Simulate a dataset of a single type
-nmachines = 6000
-n_per_machine = 1
-
-# Assign test parameters
-theta = -1
-R = -4
-beta = 0.85
-
-data = sim_dataset(theta, R, nmachines, n_per_machine, beta)
-a = data.a.values.astype(int)
-i = data.i.values.astype(int)
-
 # Estimate CPPS
 cpps = get_ccps(a,i)
+
+# Compute the state-to-state (no choice matrix)
+PF = state_state_mat(cpps,trans_mat)
 
 
 # %% [markdown]
 # # Estimation
+#
+# We are now ready to estimate the model using our data and the three methods that were previously discussed.
+#
+# In every case, we define a function that takes the parameters and data, solves the model using the specific method, and computes the log-likelihood. All that is left then is to optimize!
 
 # %% [markdown]
 # ## 1. Rust's contraction mapping.
@@ -500,6 +524,7 @@ mean_est_fx = est_fx.x
 
 se_est_fx = np.diag(est_fx.hess_inv)
 
+# %%
 # Present results
 print('Estimation results (S.E\'s in parentheses):')
 print('Theta: %.4f (%.4f)' % (mean_est_fx[0], se_est_fx[0]))
@@ -526,10 +551,7 @@ def logL_par_HM(par, a, i,
     # Return the loglikelihood from the implied value function
     return(logL(a, i, V) )
 # %%
-# Compute the state-to-state (no choice matrix)
-PF = state_state_mat(cpps,trans_mat)
-
-# And the "inv B" matrix
+# Compute the "inv B" matrix
 invB = np.linalg.inv( np.identity(len(states)) - beta*PF )
 
 # Set up objective function
@@ -542,6 +564,7 @@ mean_est_HM = est_HM.x
 
 se_est_HM = np.diag(est_HM.hess_inv)
 
+# %%
 # Present results
 print('Estimation results (S.E\'s in parentheses):')
 print('Theta: %.4f (%.4f)' % (mean_est_HM[0], se_est_HM[0]))
@@ -590,6 +613,7 @@ mean_est_fs = est_fs.x
 
 se_est_fs = np.diag(est_fs.hess_inv)
 
+# %%
 # Present results
 print('Estimation results (S.E\'s in parentheses):')
 print('Theta: %.4f (%.4f)' % (mean_est_fs[0], se_est_fs[0]))
